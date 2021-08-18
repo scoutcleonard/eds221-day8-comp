@@ -188,9 +188,80 @@ ggplot(data = lizard_counts, aes(x = date, y = n)) +
                date_labels = ("%y"))
 ```
 
-- **Discrete values**
+
+## Customized aesthetics with scale functions
+
+- `scale_color_gradient()`
+- `scale_color_gradientn()`: give a gradient of colors of your choice 
+
+```{r}
+ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = weight)) +
+  scale_color_gradientn(colors = c("orange", "cyan", "chartreuse", "black"))
+```
+- you can define the gradient scale based on desired values, also! This creates a **binned color scale** using the function `scale_color_stepsn()`
+The number of breaks does not need to be the same as the number of colors
+```{r}
+ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = weight)) +
+  scale_color_stepsn(colors = c("green", "blue", "purple"),
+                     breaks = c(0, 20, 40, 50))
+```
+
+## Update a color scheme using a palette in paletteer
+
+*Make a box plot with common name on the y-axis, and total_length on the x-axis, and color changing based on common_name.*
+
+*Arranging order by median might make this more readable*
+
+```{r}
+#factor reorder to arrange by medians
+#take the existing common name variable (a character) convert it to a factor, so it has levels, then reorder the factors based on a function (the median) using the total length of the lizards in the variable. 
+lizards_fct <- lizards %>% 
+  mutate(common_name = fct_reorder(common_name, total_length, .fun = median))
+
+levels(lizards_fct$common_name)
+
+ggplot(data = lizards_fct, aes(x = total_length, y = common_name)) +
+  geom_boxplot(aes(fill = common_name), show.legend = FALSE) +
+  scale_fill_paletteer_d(palette = "awtools::spalette")
+```
+
+## Theming 
+
+- what is the object stored that you want to change?
+- what kind of element is it? 
+- what actual aesthetic is it you are changing? 
+```{r}
+ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  theme(
+    panel.background = element_rect(fill = "yellow", 
+                                    color = "purple",
+                                    size = 10),
+    panel.grid.major.x = element_line(color = "red"),
+    panel.grid.major = element_line(color = "blue"),
+    panel.grid.major.y = element_line(color = "orange")
+  )
+
+#panel.grid changes all gridlines
+#panel.grid.major.x changes lines in the x direction 
+# most specific level is taken into account in themes, so x lines in red don't get overridden
+```
+```{r}
+
+#element_blank removed gridlines
 
 
+ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  theme(
+   panel.grid = element_blank(),
+   plot.background = element_rect(fill = "cyan4"),
+   axis.text.x = element_text(color = "orange"),
+   axis.title = element_text(color = "yellow", size = 15)
+  )
+```
 
 
 
