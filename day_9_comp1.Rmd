@@ -1,0 +1,223 @@
+---
+title: "Day 9 Comp"
+author: "Scout Leonard"
+date: "8/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(here)
+library(janitor)
+
+#Specifically for data visualization
+library(patchwork)
+library(ggrepel)
+library(gghighlight)
+library(paletteer)
+library(ggExtra)
+library(ggbeeswarm)
+library(gapminder)
+
+library(sf)
+
+lizards <- read_csv(here::here("data_tidy", "lizards.csv"))
+
+```
+
+## ggrepel
+
+Make a subset from lizards called ww_lizards that only contains observations for "western whiptail" lizards from the site sand 
+
+```{r}
+ww_lizards <- lizards %>% 
+  filter(common_name == "western whiptail",
+         site == "sand")
+
+#geom_text(aes(label = toe_num)) gives us crowded labels. geom_text_repel() gives us a way to label in a way that's more readable 
+
+ggplot(data = ww_lizards, aes(x = total_length, y = weight)) +
+  geom_point() +
+  geom_text_repel(aes(label = toe_num), size = 3, max.overlaps = 20)
+```
+
+```{r}
+#View(gapminder)
+
+#Filter for only Europe, then Create a scatterplot of gdpPercap (x) and lifeExp (y), labelled by country name
+
+europe_2002_gapminder <- gapminder %>% 
+  filter(continent == "Europe",
+         year == "2002")
+
+ggplot(data = europe_2002_gapminder, aes(x = gdpPercap, y = lifeExp)) +
+  geom_point() +
+  geom_text_repel(aes(label = country), size = 3)
+```
+
+## gghighlight
+
+```{r}
+p <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_point()
+
+p + theme_dark()
+
+p + gghighlight(toe_num == 250, label_key = toe_num)
+#allows you yo set your conditions and highlights points and adds labels, which would be a lot of work manually. 
+```
+
+```{r}
+#create a line plot of total_length versus weight
+#highlight species that exceed a weight of 30
+
+q <- ggplot(data = lizards, aes(x = total_length, y = weight)) +
+  geom_line(aes(color = common_name)) +
+  gghighlight(max(weight) > 30)
+
+q
+
+```
+
+## patchwork for compound figures 
+
+why would you want to use patchwork instead of facetting? 
+lets you put multiple figures in a graph and do some theming.
+
+```{r}
+# arrange things horizonally in a row with patchwork 
+p | q
+
+#uses pemdas!
+(p | q) / q
+
+p / (q | q)
+
+(p | q) / (q |p)
+
+(p | q) / q &
+  theme_minimal()
+#use & to apply theming to all the figures at once 
+#cowplot also does this, but is a little more in the weeds 
+```
+
+## A Few new graph types 
+
+### Marginal plots
+
+```{r}
+whiptails <- lizards %>% 
+  filter(common_name == "western whiptail") %>% 
+  drop_na(total_length, weight)
+
+#check that filter worked 
+unique(whiptails$common_name)
+
+ggplot(data = whiptails, aes(x = total_length, y = weight)) +
+  geom_point() +
+  geom_rug()
+
+#rug plot puts ticks on the axes where your values are. you can update the tick mark frequencies, but if you have data measured at equal increments, it does not tell you much! 
+```
+
+```{r}
+myplot <- ggplot(data = whiptails, aes(x = total_length, y = weight)) +
+  geom_point(aes(color = sex), size = 2) +
+  scale_color_manual(values = c("cyan4", "black", "goldenrod"),
+                     name = "Sex:",
+                     labels = c("female", "juvenile", "male")) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+#scale_color_manual allows personalizing the point colors
+# also allows us to update the legend labels and name
+# legend.position lets us move the legend to below the plot 
+
+
+#Add a boxplot in the margins using ggMarginal. First element is the plot you made that you want to add to. then is the type of plot in the margins. you can also do histograms and density plots and others! 
+ggMarginal(myplot, type = "boxplot", groupColour = TRUE)
+
+```
+### Beeswarm Plot
+
+width is based on the number of observations at or around specific values 
+
+Tells you the same info as a jitterplot, but the width talls you something about the number of values 
+
+```{r}
+ggplot(data = whiptails, aes(x = sex, y = weight)) +
+  geom_beeswarm() +
+  geom_boxplot(fill = NA)
+
+#violin plot shows you where most of the outcomes tend to fall
+#combining plots here shows more about the data than just the boxplot would
+```
+
+### A Heatmap with geom_title()
+
+Make a new dataframe called lizard_counts, starting with lizards, with date converted to class Date. then count by year and common name the number of lizards observed. 
+```{r}
+
+# mdy changes the class of date to a date based on format
+# make a column that only has the yaer in it called "year"
+lizard_counts <- lizards %>% 
+  mutate(date = lubridate::mdy(date)) %>% 
+  mutate(year = lubridate::year(date)) %>% 
+  group_by(year, common_name) %>% 
+  summarize(count = n())
+```
+
+
+```{r}
+
+#geom tile makes a heat map
+ggplot(data = lizard_counts, aes(x = year, y = common_name)) +
+  geom_tile(aes(fill = count)) +
+  geom_text(aes(label = count), color = "white", size = 3) +
+  scale_fill_gradientn(colors = c("navy", "red", "orange"))
+
+#viridis is colorblind friendly! 
+ggplot(data = lizard_counts, aes(x = year, y = common_name)) +
+  geom_tile(aes(fill = count)) +
+  geom_text(aes(label = count), color = "white", size = 3) +
+  scale_fill_viridis_c()
+```
+
+### Make a map! 
+
+We will make a map of the dominant vegetation types in the same basin the lizards live. 
+Using the sf package (simple features) for working with spatial data. 
+
+Use `read_sf` to read in the "doc.kml" file
+
+```{r}
+jornada_veg <- read_sf(here::here("data_raw","spatial_vegetation", "doc.kml")) %>% 
+  select(Name) %>% 
+  clean_names()
+```
+geometry column stores all of the spatial geometry information for creating a polygon map 
+even if you only keep the names column, the geometry sticks!! 
+
+### Make a map using geom_sf() !
+
+Fill map by dominant vegetation type. 
+set color to NA for no border. Here is is white! 
+scale_fill_paletteer_d because vegetation is a **discrete** variable!
+scale_fill_paletteer_c is for **continuous** variables
+```{r}
+ggplot(data = jornada_veg) +
+  geom_sf(aes(fill = name),
+          color = "white",
+          size = 0.2) +
+  scale_fill_paletteer_d(palette = "ggthemes::manyeys") +
+  labs(x = "longitude",
+       y = "latitude",
+       fill = "Dominent vegetation")
+
+#theme_void() gets rid of the axes
+  
+```
+
+
