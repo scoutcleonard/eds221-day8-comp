@@ -1,0 +1,20 @@
+---
+title: "Adding Alt Text"
+author: "Scout Leonard"
+date: "8/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(palmerpenguins)
+```
+
+```{r, fig.alt = "Three histograms, with each representing the distribution of body masses for a species of penguin: adelie, chinstrap, and gentoo. Adelie and Chinstrap have similar distributions that are smaller than the Gentoo distribution."}
+
+ggplot(data = penguins, aes(x = body_mass_g)) +
+  geom_histogram() +
+  facet_wrap(~species)
+```
+Right click the knitted image and select inspect element to check the alt text! 
